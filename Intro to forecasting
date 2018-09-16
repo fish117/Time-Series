@@ -1,0 +1,179 @@
+############################################################
+
+
+# Week 01-02 examples: Intro to forecasting, basic methods
+############################################################
+
+library(fpp) # load the Forecasting: Principles and Practice package, as well as all its dependencies
+
+data() # this allows you to see all the datasets that you have access to in the packages you have loaded
+
+
+############################
+# MONTHLY BEER PRODUCTION
+print(beer) # view the dataset for monthly beer production
+class(beer) # this is a time series dataset
+
+# Monthly Australian beer production: Jan 1991 â? Aug 1995.
+# Time plot
+plot(beer, main = "Monthly Australian beer production", xlab = "Year", ylab = "Megaliters")
+
+# Season plot
+seasonplot(beer, ylab = "Megaliters", xlab = "Month", main = "Monthly Australian beer production", year.labels = TRUE, year.labels.left = TRUE, col=1:5, pch=19)
+
+# Seasonal deviation plot
+monthplot(beer, ylab="Megaliters", xlab = "Month", xaxt="n", main="Seasonal deviation plot: beer prediction")
+axis(1, at=1:12, label = month.abb, cex=0.8)
+
+# ACF plot / correlogram
+Acf(beer, lag.max = 14, main = "The correlogram (or ACF plot) for the beer production data")
+
+# Lag plot
+lag.plot(beer, lags=14, do.lines=FALSE)
+
+
+############################
+# PRICE AND MILEAGE OF CARS
+
+# Scatterplot
+plot(Price ~ Mileage, data = auto, xlab = "Mileage (mpg)", ylab = "Price ($US)", main = "Price/mileage relationship for 45 automobiles", pch=16)
+
+plot(Price ~ Mileage, data = auto, col = Country, xlab = "Mileage (mpg)", ylab = "Price ($US)", main = "Price/mileage relationship for 45 automobiles", pch=16)
+legend("topright", levels(auto$Country), fill = 1:2)
+
+# Univariate statistics
+auto2 <- subset(auto, Country == "Japan")
+summary(auto2[, "Mileage"])
+
+sd(auto2[, "Mileage"])
+
+# Bivariate statistics
+cor(auto2[, "Mileage"], auto2[, "Price"])
+
+
+############################
+# 1. Mathematical transformations
+# ELECTRICITY DEMAND
+plot(elec, ylab="Electricity demand", xlab="Year", main="Monthly electricity demand")
+
+
+plot(log(elec), ylab="Transformed electricity demand", xlab="Year", main="Transformed monthly electricity demand")
+title(main="Log",line=-1)
+
+
+lambda <- BoxCox.lambda(elec) # = 0.27; 
+plot(BoxCox(elec,lambda), ylab="Transformed electricity demand",
+     xlab="Year", main="Transformed monthly electricity demand")
+
+
+# Try some different values of lambda
+plot(BoxCox(elec,0.1), ylab="Transformed electricity demand", xlab="Year", main="Transformed monthly electricity demand")
+plot(BoxCox(elec,0.5), ylab="Transformed electricity demand", xlab="Year", main="Transformed monthly electricity demand")
+
+
+
+# 2. calendar adjustments
+# Monthly milk production
+library(fpp)
+print(milk)
+
+monthdays <- rep(c(31,28,31,30,31,30,31,31,30,31,30,31),14) # there are 14 years of data, so repeat this 14 times
+monthdays[26 + (4*12)*(0:2)] <- 29 # add leap years; extra day to every 4th February
+
+par(mfrow=c(2,1), mar=c(4,4,4,1))
+plot(milk, main="Monthly milk production per cow", ylab="Pounds",xlab="Years")
+plot(milk/monthdays, main="Average milk production per cow per day", ylab="Pounds", xlab="Years")
+
+dev.off()
+res <- residuals(snaive(milk),h=12)
+# ACF plot of residuals
+Acf(milk, main="ACF of residuals")
+Acf(usdeaths)
+acf(ausbeer)
+############################
+# QUARTERLY BEER PRODUCTION (different from monthly beer production)
+print(ausbeer)
+
+beer2 <- window(ausbeer,start=1992,end=2006-.1) # Select the training sert
+plot(beer2)
+
+beerfit1 <- meanf(beer2, h=11)
+beerfit2 <- naive(beer2, h=11)
+beerfit3 <- snaive(beer2, h=11)
+accuracy()
+# Plot with three forecast methods
+plot(beerfit1, plot.conf=FALSE, main="Forecasts for quarterly beer production", ylab = "Megaliters", xlab = "Year") #this automatically adds the average method result in blue, which is col=4
+lines(beerfit2$mean,col=2)
+lines(beerfit3$mean,col=3)
+legend("topright",lty=1,col=c(4,2,3), legend=c("Mean method","Naive method","Seasonal naive method"))
+
+# Plot with all original data and three forecast methods
+beer3 <- window(ausbeer,start=1992,end=2009-.1)
+plot(beer3, main="Forecasts for quarterly beer production", ylab = "Megaliters", xlab = "Year")
+lines(beerfit1$mean,col=4)
+lines(beerfit2$mean,col=2)
+lines(beerfit3$mean,col=3)
+legend("topright",lty=1,col=c(4,2,3), legend=c("Mean method","Naive method","Seasonal naive method"))
+
+
+beer3 <- window(ausbeer, start=2006) # Select the test set and apply each forecasting method, comparing the forecast to the test set
+accuracy(beerfit1, beer3) 
+accuracy(beerfit1, beer3)[2,c(2,3,5,6)] # mean method
+accuracy(beerfit2, beer3)[2,c(2,3,5,6)] # naive method
+accuracy(beerfit3, beer3)[2,c(2,3,5,6)] # seasonal naive method
+
+
+############################
+# DOW JONES
+
+print(dj)
+length(dj) #292 - using 1-250 as the training set to fit the model, then using 251-292 as the test set to calculate the measures of accuracy
+acf(dj)
+# Plot the training set and the forecasts
+dj2 <- window(dj,end=250)
+plot(dj2,main="Forecasts for Dow Jones Index (daily ending 15 Jul 94)", ylab = "Dow Jones Index value",xlab="Day",xlim=c(2,290))
+lines(meanf(dj2,h=42)$mean,col=4)
+lines(rwf(dj2,h=42)$mean,col=2)
+lines(rwf(dj2,drift=TRUE,h=42)$mean,col=3)
+legend("topleft",lty=1,col=c(4,2,3), legend=c("Mean method","Naive method","Drift method"))
+
+
+# Measures of accuracy
+dj3 <- window(dj, start=251)
+rbind(accuracy(meanf(dj2,h=42), dj3)[2,c(2,3,5,6)],
+      accuracy(rwf(dj2,h=42), dj3)[2,c(2,3,5,6)],
+      accuracy(rwf(dj2,drift=TRUE,h=42), dj3)[2,c(2,3,5,6)])
+
+
+
+# Plot with all original data (training and test sets) and the three forecasting methods
+plot(dj,main="Forecasts for Dow Jones Index (daily ending 15 Jul 94)", ylab = "Dow Jones Index value",xlab="Day",xlim=c(2,290))
+lines(meanf(dj2,h=42)$mean,col=4)
+lines(rwf(dj2,h=42)$mean,col=2)
+lines(rwf(dj2,drift=TRUE,h=42)$mean,col=3)
+legend("topleft",lty=1,col=c(4,2,3), legend=c("Mean method","Naive method","Drift method"))
+
+
+
+#Residual diagnostics
+dj2 <- window(dj, end=250)
+plot(dj2, main="Dow Jones Index (daily ending Jul 15, 1994)", ylab="", xlab="Day")
+
+res <- residuals(naive(dj2)) # residuals from the naive method fitted to the training set
+
+plot(res, main="Residuals from naive method", ylab="", xlab="Day")
+abline(0,0, lty=2)
+
+mean.res <- mean(res, na.rm=TRUE) # compared to the scale of residuals, this value is quite close to zero, indicating no bias.
+
+# ACF plot of residuals
+Acf(res, main="ACF of residuals")
+
+# Histogram of residuals
+hist(res, nclass="FD", main="Histogram of residuals") #nclass = FD uses a way of choosing the number of bins based on the IQR
+
+# Calculation of SD of the residuals
+sqrt(sum((res-mean.res)^2, na.rm=TRUE)/(length(res) - 1)) #sd for residuals; used for calculating prediction intervals
+
+
+
