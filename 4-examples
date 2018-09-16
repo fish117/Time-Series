@@ -1,0 +1,258 @@
+#######################################################
+
+# Week 04-05 examples 
+#######################################################
+
+library(fpp)
+
+#########################################
+# STATIONARITY
+#########################################
+
+lynx
+plot(lynx) # Annual total of lynx trapped in the McKenzie River district of north-west Canada
+# The time plot shows strong cycles, which might look non-stationary. However, the cycles are aperiodic and therefore unpredictable. This is why we refer to these as cycles rather than seasonality.
+
+Acf(lynx) # On the ACF plot, it can also be difficult to tell the difference between seasonality and strong cycles.
+
+plot(lynx)
+
+abline(v=seq(1828, by=10, length.out = 12), col="red")
+# because it is not fair distribution
+
+# this is not seasonality,just cycle
+#########################################
+# DIFFERENCING
+#########################################
+
+plot(eggs) # non-seasonal; decreasing trend,therefore, it is not stationary
+
+Acf(eggs)# Acf will not show lag=0
+#it is taking a while to decay hence it has a trend
+plot(diff(eggs))# calculating the difference,
+abline(0,0, lty=2)
+Acf(diff(eggs))
+# because the ACF is within deviations, there is no trend,the first lag gas neative ACF ,important feature
+
+plot(hsales) # seasonal, with cycles
+Acf(hsales)
+
+diff(hsales, 12) # seasonal differences  lag=12=seasonality
+plot(diff(hsales, 12)) # still long periods increasing or decreasing therefore it doesn't have constant mean,
+# sometimes mean>0 or ,<)
+Acf(diff(hsales, 12)) # the ACF takes a long time to decrease,need more diffrencing
+
+diff(diff(hsales, 12)) # apply the seasonal differencing, then first order differencing
+plot(diff(diff(hsales, 12)))  # mean and variance is constant
+Acf(diff(diff(hsales, 12)), lag.max = 36) # this isn't bad. Remember, we are trying to make it stationary, but there can still be autocorrelations
+# it is OK that we have 1 autocorrelation left because it doesn't take a long time to decay
+
+#########################################
+# PACF PLOTS
+#########################################
+
+par(mfrow=c(2  ,2))
+plot(eggs)
+plot.new()#blank plot
+Acf(eggs)
+Pacf
+(eggs)# shows that since when lag=2, it is within deviation, therefore, 2-order diffrencing
+dev.off()
+
+
+par(mfrow=c(2,2))
+plot(hsales)
+plot.new()
+Acf(hsales)
+Pacf(hsales)# same as before. some exceed deviation
+dev.off()
+
+
+#########################################
+# NON-SEASONAL
+# Differentiated model; ARIMA (0,1,0)
+#########################################
+
+plot(dj)
+
+print(dj)
+length(dj)
+dj.training <- window(dj,end=250)
+dj.test <- window(dj, start=251)
+
+plot(dj.training)
+
+Acf(dj.training) # the strong positive correlation at lag 1, and the long, slow decrease after indicate non-stationarity
+Pacf(dj.training)#from this we know diff=1
+
+
+# Is it stationary or do we need differencing?
+# Yes.because we have trend
+adf.test(dj.training, alternative="stationary") # alternative hypothesis: stationary
+kpss.test(dj.training) # null hypothesis: stationary
+
+# these results indicate that the series does require differencing
+# another way to determine this is to use the following function, which can use the ADF test or the KPSS test:
+ndiffs(dj.training) # this tells us the amount of differencing that is required
+
+
+# Now, instead we will be predicting the changes in the values, not the actual values
+
+plot(diff(dj.training))# no trend, no seasonality, constatn variance
+
+Acf(diff(dj.training)) # this looks okay, if the first autocorrelation were negative, then this would indicate that we differenced when we should not have
+# the best indication is the first lag, lag=1 it's almost = 0,therefore, no more differecing
+Pacf(diff(dj.training))
+
+fit.dj.1 <- Arima(dj.training, order=c(0,1,0), include.constant=FALSE)
+summary(fit.dj.1) # the MASE this is a little less than 1, indicating a slightly better fit to the training set than the naive method
+# ACCc could be used for comparision, it's important criteria 
+
+# We may want to check the residuals
+mean(residuals(fit.dj.1)) # this is close to 0, indicating no bias
+plot(residuals(fit.dj.1))
+
+Acf(residuals(fit.dj.1)) # no autocorrelations left in the residuals, this means that we don't have additional information we should be including in the model
+
+# If we want to formally test this, we can use the Ljung-Box Test:
+Box.test(residuals(fit.dj.1), type="Ljung", lag=10) # the null hypothesis is that there are no autocorrelations
+Box.test(residuals(fit.dj.1), type="Box-Pierce", lag=10)
+# This agrees with our assessment of the ACF plot of the residuals
+
+# Let's compare how well our first order differencing model and the naive method do at forecasting:
+accuracy(forecast(naive(dj.training, h=42)), dj.test) # you can see that the MASE is exactly equal to 1, this is because the naive method is the benchmark method that is being used to calculate the scaled errors
+#only compare for the test set
+accuracy(forecast(fit.dj.1, h=42), dj.test)#the MASE decrease slightly, that means this method is a little better than naive method
+# these results are the same because the ARIMA(0,1,0) is the naive method.
+# the accuracy measures are the same, indicating that the forecasts from each method are equivalent
+
+# Here is a plot of the forecasts from the naive method:
+plot(forecast(naive(dj.training, h=42)))
+lines(dj)
+# the test set is within the predition interval
+# Here is a plot of the forecasts from the first order differences:
+plot(forecast(fit.dj.1,h=42))
+lines(dj)
+
+
+# If we repeat this model but include the constant, then this is equivalent to the random walk with drift method.
+
+#########################################
+# NON-SEASONAL
+# First order autoregressive model; ARIMA (1,0,0)
+#########################################
+
+Acf(dj.training)
+Pacf(dj.training)
+# we are seeing a slow decay on the original ACF plot, and a sharp drop off on the PACF plot. Together this indicates that we could add 1 AR term instead of differencing. This is then a first order autoregressive model
+#diff=1 becuase for PACF the lag=1 is not =0
+
+# if we don't do the differencing, the data isn't lost the first value. and we use difference here, 
+# Total data set is different, 
+
+# so we cannot compare the AICc to each other. AICc only use fro the same data set.
+
+fit.dj.2 <- Arima(dj.training, order=c(1,0,0))
+summary(fit.dj.2)
+# becuase the coefficient for the 1 st observation =0.9746 appoximately =1 ,we could think it's simiar to naive
+
+# If we take a look at the MASE, we can see if this model fit better than some benchmark. If the MASE is below 1, then our model fit better than the benchmark method. This is about 1, so this model fit similarly to the benchmark method
+
+# We may want to check the residuals
+mean(residuals(fit.dj.2)) # this is close to 0, indicating no bias
+plot(residuals(fit.dj.2))
+Acf(residuals(fit.dj.2)) # no autocorrelations left in the residuals, this means that we don't have additional information we should be including in the model
+Box.test(residuals(fit.dj.2), type="Ljung", lag=10)
+
+
+# Let's compare how well our first order autoregressive model and the naive method do at forecasting:
+accuracy(forecast(naive(dj.training, h=42)), dj.test) # you can see that the MASE is exactly equal to 1, this is because the naive method is the benchmark method that is being used to calculate the scaled errors
+accuracy(forecast(fit.dj.2, h=42), dj.test)
+
+#if we could not sure do diff, we could try different model and compare them
+
+# In this case, the naive method (random walk model) performed better
+
+
+#########################################
+# NON-SEASONAL
+# Moving average model
+#########################################
+
+
+plot(usconsumption) # note that there are two time series in this dataset, "Growth rates of personal consumption and personal income in the USA." These are quarterly percent changes, so we have already done a type of differencing
+plot(decompose(usconsumption[,1]))
+
+plot(usconsumption[,1]) # this allows you to view just one of the time series; the consumption
+
+ndiffs(usconsumption[,1]) # this indicates that we do not need to difference the data, it is already stationary
+
+Acf(usconsumption[,1]) # the way the ACF cuts off suddenly after 3 lags indicates that we might want to try a moving average component of order 3
+Pacf(usconsumption[,1])# we could try autoregressive or Moving average. ARIMA(3,0,0) or ARIMA (0,0,3) 
+#try ARIMA +-1
+
+fit.usconsumption.1 <- auto.arima(usconsumption[,1],seasonal=FALSE)
+summary(fit.usconsumption.1) # this includes the constant, referred to as a non-zero mean
+
+plot(forecast(fit.usconsumption.1,h=10),include=80)
+
+
+
+#########################################
+# NON-SEASONAL, with trend
+# First order differencing
+#########################################
+
+plot(eggs) # note that there is a trend
+print(eggs) # 1900 to 1993, say we make the test set 15 years
+
+eggs.training <- window(eggs,end=1978)
+eggs.test <- window(eggs, start=1979)
+
+plot(eggs.training)
+
+adf.test(eggs.training, alternative="stationary") # alternative hypothesis: stationary
+kpss.test(eggs.training) # null hypothesis: stationary
+
+# This is clearly not stationary, so we should try taking the first differences
+ndiffs(eggs.training)
+
+
+plot(diff(eggs.training)) # this could be stationary, let's check with some tests
+
+adf.test(diff(eggs.training), alternative="stationary") # alternative hypothesis: stationary
+kpss.test(diff(eggs.training)) # null hypothesis: stationary
+
+# these indicate that it is now stationary.
+
+Acf(diff(eggs.training))
+qPacf(diff(eggs.training))
+
+# the lack of pattern on the ACF and PACF plots does not indicate adding either an AR term or a MA term
+
+# We can fit a model with the constant
+fit.eggs.1 <- Arima(eggs.training, order=c(0,1,0), include.mean=TRUE)
+summary(fit.eggs.1)
+
+# We can also fit a model without the constant
+fit.eggs.2 <- Arima(eggs.training, order=c(0,1,0), include.mean=FALSE)
+summary(fit.eggs.2)
+
+# Was the mean required for the model?
+
+# We may want to check the residuals
+mean(residuals(fit.eggs.1))
+plot(residuals(fit.eggs.1))
+Acf(residuals(fit.eggs.1)) # you would expect one significant autocorrelation just by chance, so this isn't a big problem
+
+
+# Let's try the automatic function
+fit.eggs.3 <- auto.arima(eggs.training)
+summary(fit.eggs.3)
+
+# Note that sometimes the automatic function will take some shortcuts. If you want to avoid those, use the following code:
+fit.eggs.4 <- auto.arima(eggs.training, stepwise=FALSE, approximation=FALSE)
+summary(fit.eggs.4)
+# This gives the same result
+
+
