@@ -1,0 +1,389 @@
+#########################################
+
+# Week 03 examples
+#########################################
+
+library(fpp)
+
+# Seasonal datasets: beer, ausbeer, elec, elecequip
+# Non-seasonal datasets: dj, oil
+
+#########################################
+# Simple Exponenetial smoothing
+# with different values of alpha
+# Slides 10 - 22
+#########################################
+
+print(oil) # data from 1965 - 2010
+plot(oil)
+
+
+oildata <- window(oil,start=1996,end=2007) # this is the training set. Why did we remove the data from before 1996?
+print(oildata)
+plot(oildata, ylab="Oil (millions of tonnes)",xlab="Year")
+
+fit1 <- ses(oildata, alpha=0.2, initial="simple", h=3)#????????????3?????????
+fit2 <- ses(oildata, alpha=0.6, initial="simple", h=3)
+fit3 <- ses(oildata, h=3) # let R choose a value for the smoothing parameter that minimizes the sum of squared residuals
+fit3
+summary(fit3)
+residuals(fit3)
+# Graph
+plot(oildata, ylab="Oil (millions of tonnes)", xlab="Year", main="", xlim=c(1996, 2010), type="o") # original data in black; forecast color is in white (so it doesn't actually show up); then in the following three lines, we add the three different fitted models
+lines(fitted(fit1), col="blue", type="o") # Note that we are plotting the fitted values for the training set here
+lines(fitted(fit2), col="red", type="o")
+lines(fitted(fit3), col="green", type="o")
+
+# Note that as the smoothing parameter approaches 1, the forecasts become closer to naive forecasts, lagging behind the data one time-step
+# These next three lines add the three forecasts from each of the different fitted models
+lines(fit1$mean, col="blue", type="o")
+lines(fit2$mean, col="red", type="o")
+lines(fit3$mean, col="green", type="o")
+legend("topleft",lty=1, col=c(1,"blue","red","green"), c("data", expression(alpha == 0.2), expression(alpha == 0.6), expression(alpha == 0.89)),pch=1)
+
+# Note that the forecasts into the future use the observation from 2007, which is why the 2008 forecast values are different from the 2007 forecast values 
+
+
+
+# Compare simple exponential smoothing to the benchmark methods (basic forecasting methods)
+oil.test <- window(oil,start=2008) # this is the test set.
+#we need to specify where to start
+# Graph
+plot(oildata, ylab="Oil (millions of tonnes)", xlab="Year", main="", xlim=c(1996, 2010), type="o")
+lines(fitted(fit3), col="green", type="o") # plot the SES model for the training set
+lines(fit3$mean, col="green", type="o") # plot the forecast from the best SES model for the test set
+lines(oil.test, col="black", type="o") # plot the test set
+
+lines(meanf(oildata, h=3)$mean, col="blue", type="o")
+lines(naive(oildata, h=3)$mean,col="red", type="o")
+lines(rwf(oildata, drift=TRUE, h=3)$mean, col="purple", type="o")
+legend("topleft",lty=1,col=c("blue", "red","purple", "green"), legend=c("Mean method","Naive method","Drift method", "SES"))
+
+
+# these are each of the methods on their own, if you want to see the code for them
+oil.mean <- meanf(oildata, h=3)
+oil.naive <- naive(oildata, h=3)
+oil.drift <- rwf(oildata, drift=TRUE, h=3)
+oil.ses <- ses(oildata, h=3)
+
+
+rbind(accuracy(oil.mean, oil.test)[2,c(2,3,5,6)],
+      accuracy(oil.naive, oil.test)[2,c(2,3,5,6)],
+      accuracy(oil.drift, oil.test)[2,c(2,3,5,6)],
+      accuracy(oil.ses, oil.test)[2,c(2,3,5,6)])
+#??????????????????,???????????????????????????????????????, ??????????????????????????????,????????????mean?????????
+# Which model performs the best when forecasting the test set?
+
+
+
+
+#########################################
+# Example of Holt's linear trend, exponential trend and additive damped trend
+# Slides 26 - 39
+#########################################
+air <- window(ausair,start=1990,end=2004)
+plot(air)
+
+# Holt's linear trend method
+fit1 <- holt(air, alpha=0.8, beta=0.2, initial="simple", h=5) # if you don't set values for alpha and beta, they will be chosen
+#forecast into the test set 5 periods,   initialization method is simple
+fit1$model$state # values for the level and slope at different time periods
+fitted(fit1) # fitted values; column on the right in lecture notes
+
+fit1$mean #forecasts for five time periods into the future,we can see the value of forecast
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit1$mean, col="blue", lwd=3)#lwd means the line ??????
+lines(fitted(fit1), col="blue") 
+
+
+# Let's try a different value for alpha
+fit1.low.alpha <- holt(air, alpha=0.2, beta=0.2, initial="simple", h=5)
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit1.low.alpha$mean, col="red", lwd=3)
+lines(fitted(fit1.low.alpha), col="red")
+lines(fit1$mean, col="blue", lwd=3)
+lines(fitted(fit1), col="blue")
+#??????????????????????????????
+
+# And a different value for beta
+fit1.high.beta <- holt(air, alpha=0.8, beta=0.8, initial="simple", h=5)# ?????????????????,???????????,?????????????????????
+lines(fit1.high.beta$mean, col="forestgreen", lwd=3)
+lines(fitted(fit1.high.beta), col="forestgreen")
+
+# How well do these fit the training set?
+accuracy(fit1)
+accuracy(fit1.low.alpha)
+accuracy(fit1.high.beta)
+#??????high ?????????????????
+
+# Let's create a model that minimizes the sum of squared errors (residuals) for the training set:
+fit1.min.SSE <- holt(air, initial="simple", h=5)
+accuracy(fit1.min.SSE)
+
+summary(fit1.min.SSE)
+#???R?????????????????????????????????????????????test set
+
+#Smoothing parameters:
+# alpha = 0.7713 
+# beta  = 0.4853 
+# These are the smoothing parameters that have minimized the sum of squared errors (residuals) for the training set
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit1.min.SSE$mean, col="purple", lwd=3)
+lines(fitted(fit1.min.SSE), col="purple")
+
+air.test <- window(ausair,start=2005,end=2009)
+lines(air.test, type="o")
+
+# What if we compare some different forecasting methods?
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit1.min.SSE$mean, col="purple", lwd=3)
+lines(fitted(fit1.min.SSE), col="purple")
+lines(air.test, type="o")
+lines(meanf(air, h=5)$mean, col="blue", lwd=3)
+lines(naive(air, h=5)$mean,col="red", lwd=3)
+lines(rwf(air, drift=TRUE, h=5)$mean, col="forestgreen", lwd=3)
+legend("topleft",lty=1, lwd=3, col=c("purple", "blue", "red", "forestgreen"), legend=c("Holt's linear method", "Mean method","Naive method","Drift method"))
+#?????????trend?????????,mean???naive?????????????????????,??????drift,????????????????????????
+
+#######################################################
+# GENERATING FORECASTS ONCE YOU HAVE CHOSEN A METHOD
+#######################################################
+
+# Say we choose Holt's linear method and want to generate our real forecasts. How would we do that?
+# Smoothing parameters
+# alpha = 0.7713 
+# beta  = 0.4853 
+#??????????????????????????????????????????,??????????????????data???????????????????????????
+air.all <- window(ausair,start=1990,end=2009) # take the whole dataset (that we are using); training set and test set
+air.forecasts <- holt(air.all, alpha=0.7713, beta=0.4853, initial="simple", h=5)
+air.forecasts
+
+air.forecasts <- as.data.frame(air.forecasts)
+air.forecasts
+names(air.forecasts) <- c("forecasts", "lo.80", "high.80", "low.95", "high.95")
+air.forecasts
+
+forecast.years <- seq(2010, 2014, by=1) # we will need x-values to go with the forecasts and prediction intervals
+
+plot(air.all, xlim=c(1990, 2015), ylim=c(15, 70))
+lines(air.forecasts$forecasts ~ forecast.years, col="blue")
+lines(air.forecasts$low.95 ~ forecast.years, lty=2, col="blue")
+lines(air.forecasts$high.95 ~ forecast.years, lty=2, col="blue")
+
+
+#########################################
+# Example of exponential trend method
+# Slides 29-30
+#########################################
+
+fit2 <- holt(air, alpha=0.8, beta=0.2, initial="simple", exponential=TRUE, h=5) #exponential=TRUE??????????????????multipicative method
+plot(fit2, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", 
+     fcol="red", plot.conf=FALSE)# plot.conf??????????????????
+lines(fitted(fit2), col="red") 
+
+# Let's create a model that minimizes the sum of squared errors (residuals) for the training set:
+fit2.min.SSE <- holt(air, initial="simple", exponential=TRUE, h=5)
+accuracy(fit2.min.SSE)
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit1.min.SSE$mean, col="purple", lwd=3)
+lines(fit2.min.SSE$mean, col="red", lwd=3)
+lines(rwf(air, drift=TRUE, h=5)$mean, col="forestgreen", lwd=3)
+lines(air.test, type="o")
+legend("topleft",lty=1, lwd=3, col=c("purple", "red", "forestgreen"), legend=c("Holt's linear method", "Exponential trend","Drift method"))
+#????????????,????????????over estimate
+# We can see that the exponential trend method is over-predicting.
+
+
+#########################################
+# Example of Holt's linear trend method (damped) / Additive damped trend
+# Slides 32
+#########################################
+
+# This is a modification of Holt's linear trend method
+
+fit3.min.SSE <- holt(air,  damped=TRUE, initial="optimal", h=5) 
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fit3.min.SSE$mean, col="blue", lwd=3)
+lines(fitted(fit3.min.SSE), col="blue") #??????????????????,?????????0
+
+
+# Put all the methods on one plot
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fitted(fit1.min.SSE), col="purple") 
+lines(fitted(fit2.min.SSE), col="red")
+lines(fitted(fit3.min.SSE), col="blue")
+lines(fit1.min.SSE$mean, col="purple", lwd=3) 
+lines(fit2.min.SSE$mean, col="red", lwd=3)
+lines(fit3.min.SSE$mean, col="blue", lwd=3)
+lines(air.test, type="o")
+legend("topleft",lty=1, lwd=3, col=c("black","purple","red","blue"), legend=c("Data","Holt's linear trend","Exponential trend","Additive damped trend"))
+
+# Which method looks the best?
+#???????????????????????????holt's
+
+
+# Slide 33 shows the comparison between the methods with smoothing parameter values that are easier to work with for calculations as an example. But in reality, you would want to work with the smoothing parameters that minimize the SSE
+
+fit3 <- holt(air, alpha=0.8, beta=0.2, damped=TRUE, initial="optimal", h=5) 
+
+plot(air, type="o", ylab="Air passengers in Australia (millions)", xlab="Year", xlim=c(1990, 2010), ylim=c(15, 55))
+lines(fitted(fit1), col="blue") 
+lines(fitted(fit2), col="red")
+lines(fitted(fit3), col="green")
+lines(fit1$mean, col="blue", type="o") 
+lines(fit2$mean, col="red", type="o")
+lines(fit3$mean, col="green", type="o")
+legend("topleft", lty=1, col=c("black","blue","red","green"), 
+       c("Data","Holt's linear trend","Exponential trend","Additive damped trend"))
+
+air.test <- window(ausair,start=2005,end=2009)
+
+lines(air.test, col="black", type="o")
+
+
+#########################################
+# Example of Exponential trend method (damped) / Multiplicative damped trend
+#########################################
+
+# Note that you can also create a damped version of the exponential trend method:
+fit4 <- holt(air,  damped=TRUE, exponential=TRUE, initial="optimal", h=5) 
+
+lines(fit4$mean, col="forestgreen", lwd=3)
+lines(fitted(fit4), col="forestgreen") 
+# What do you notice about the forecasts from the two damped methods?
+
+
+#########################################
+# Simple Exponential Smoothing (A, N, N)
+# no trend, no seasonality, additive errors (constant through time)
+#########################################
+
+plot(dj)
+
+dj.training <- window(dj,end=250)
+dj.test <- window(dj, start=251)
+
+plot(dj.training)
+
+# Two ways of fitting the same model
+dj.ses1 <- ses(dj.training, h=42) # simple exponential smoothing
+dj.ses2 <- ets(dj.training, model="ANN", damped=FALSE) #ETS (A, N, N), where errors are additive, there is no trend and no seasonality
+#holt method?????????no seasonal????????????????????????model???ANN,
+# Graph
+plot(dj.ses1, main="Simple Exponential Smoothing ETS(A,N,N)",ylab="Level",xlab="Day")
+lines(dj.training)
+
+# lines(dj) # if you want to see the test set on the graph where the forecast is
+
+# Smoothing Parameters
+dj.ses2 # smoothing parameter (alpha) is very close to 1, indicating that this method is very close to the naive method
+
+
+plot(dj.ses1, main="Simple Exponential Smoothing ETS(A,N,N)",ylab="Level",xlab="Day")
+lines(dj.training)
+
+
+
+#########################################
+# Holt's Linear Trend Method (A, A, N)
+# linear trend, no seasonality, additive errors (constant through time)
+#########################################
+
+dj.holt1 <- holt(dj.training, h=42)
+dj.holt2 <- ets(dj.training, model="AAN", damped=FALSE)
+
+# Graph
+plot(dj.holt1, main="Holt's Linear Trend Method ETS(A,A,N)", ylab="Level", xlab="Day")
+lines(dj)
+
+# Smoothing Parameters
+dj.holt2
+
+
+#########################################
+# Exponential Trend Method (A, M, N)
+# multiplicative trend, no seasonality, additive errors (constant through time)
+#########################################
+
+dj.exp1 <- holt(dj.training, h=42, exponential=TRUE) # note that this is the same function, but now we have chosen the trend to be multiplicative
+# dj.exp2 <- ets(dj.training, model="AMN", damped=F) # "Forbidden model combination"; can't do this with the ets() function, but you can do it with the holt() function
+
+# Graph
+plot(dj.exp1, main="Exponential Trend Method ETS(A,M,N)", ylab="Level", xlab="Day")
+lines(dj)
+
+# Smoothing Parameters
+# dj.exp2
+# ets model combination not supported
+
+
+
+#########################################
+# Comparing additive and multiplicative trend
+#########################################
+accuracy(forecast(dj.holt1, 42), dj.test)[2,c(2,3,5,6)]
+accuracy(forecast(dj.exp1, 42), dj.test)[2,c(2,3,5,6)]
+
+# The multiplicative trend fits the test set better than the linear trend method
+
+
+#########################################
+# (Gardner's) Additive Damped Trend Method (A, Ad, N)
+# additive damped trend, no seasonality, additive errors (constant through time)
+#########################################
+
+dj.add.damp1 <- holt(dj.training, h=42, damped=TRUE) # the default was damped=FALSE
+dj.add.damp2 <- ets(dj.training, model="AAN", damped=TRUE)
+
+# Graph
+plot(dj.add.damp1, main="Gardner's Additive Damped Trend Method ETS(A,Ad,N)", ylab="Level", xlab="Day")
+lines(dj)
+
+# Smoothing Parameters
+dj.add.damp2
+
+
+
+#########################################
+# (Taylor's) Multiplicative Damped Trend Method (A, Md, N)
+# restrained exponential damped trend, no seasonality, additive errors (constant through time)
+#########################################
+
+dj.mult.damp1 <- holt(dj.training, h=42, exponential=TRUE, damped=TRUE)
+# dj.mult.damp2 <- ets(dj.training, model="AMN", damped=TRUE) # forbidden model combination
+
+# Graph
+plot(dj.mult.damp1, main="Gardner's Additive Damped Trend Method ETS(A,Ad,N)", ylab="Level", xlab="Day")
+lines(dj)
+
+# Smoothing Parameters
+# dj.mult.damp2
+# ets model combination not supported
+
+
+
+
+#########################################
+#Residual diagnostics
+#########################################
+res <- residuals(dj.mult.damp1) # residuals from the multiplicative damped trend method fitted to the training set
+
+plot(res, main="Residuals from multiplcative damped trend method", ylab="", xlab="Day")
+abline(0,0, lty=2)
+
+mean.res <- mean(res, na.rm=TRUE) # compared to the scale of residuals, this value is quite close to zero, indicating no bias.
+mean.res
+# model is unbiased.
+
+# ACF plot of residuals
+#???????????????pattern???,??????ACF
+Acf(res, main="ACF of residuals")#??????95%??????????????????????????????
+acf(res)#lag=0 because it is not value information,?????????Acf
+# Histogram of residuals
+hist(res, nclass="FD", main="Histogram of residuals") #nclass = FD uses a way of choosing the number of bins based on the IQR
+
