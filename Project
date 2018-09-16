@@ -1,0 +1,166 @@
+mydata<-read.csv(file.choose(),header = TRUE)
+library(fpp)
+str(mydata)
+energy <- ts(mydata$energy, start=c(1997, 1), end=c(2010, 12), frequency=12) 
+
+#explantory analysis
+
+plot(energy, main = "Monthly energy use ", xlab = "month", ylab = "energy")
+
+# Season plot
+seasonplot(energy, ylab = "energy", xlab = "Month", main = "Monthly energy production", year.labels = TRUE, year.labels.left = TRUE, col=1:5, pch=19)
+
+
+
+
+
+# log transformation
+plot(log(energy), main = "Monthly energy use ", xlab = "month", ylab = "energy")
+
+#BOX-COX
+lambda <- BoxCox.lambda(energy) # = 0.27; 
+lambda
+plot(BoxCox(energy,lambda), ylab="Transformed electricity demand",
+     xlab="Year", main="Transformed monthly electricity demand")
+ 
+# calender trasformation
+monthdays <- rep(c(31,28,31,30,31,30,31,31,30,31,30,31),14) # there are 14 years of data, so repeat this 14 times
+monthdays[26 + (4*12)*(0:2)] <- 29 # add leap years; extra day to every 4th February
+
+par(mfrow=c(2,1), mar=c(4,4,4,1))
+plot(energy, main="energy", ylab="cost",xlab="Years")
+plot(energy/monthdays, main="energy", ylab="cost", xlab="Years")
+
+
+# training set and test set
+print(energy)
+e.training <- window(energy,end=c(2007,12))
+e.test <- window(energy, start=c(2008,01))
+
+# Plot the training set and the forecasts
+dev.off()
+
+# Basic method
+efit.mean <- meanf(e.training, h=36)
+
+efit.naive<- rwf(e.training, h=36)
+efit.seasonal <- snaive(e.training, h=36)
+efit.drift<-rwf(e.training,drift=TRUE,h=36)
+cbind(efit.mean$mean,efit.naive$mean,efit.seasonal$mean,efit.drift$mean)
+plot(e.training,main="Forecasts for energy use", ylab = "energy",xlab="month",xlim=c(1997,2010),ylim=c(5000,9000))
+lines(e.test,col=42)
+lines(efit.mean$mean,col=4)
+lines(efit.naive$mean,col=5)
+lines(efit.seasonal$mean,col=3)
+lines(efit.drift$mean,col=33)
+
+legend("topleft",lty=1,col=c(42,4,2,3,33), legend=c("test set","Mean method","Naive method","seasonal naive","Drift method"))
+rbind(accuracy(efit.mean,e.test),
+accuracy(efit.naive,e.test),
+accuracy(efit.seasonal,e.test),
+accuracy(efit.drift,e.test))
+
+#ETS MODEL
+
+fit1<- ets(e.training, model="AAA", damped=FALSE)
+summary(fit1)
+# Graph
+plot(e.training, ylab="energy", xlab="Year", main="energy",ylim=c(4000,8000) ,xlim=c(1997, 2011))
+lines(e.test)
+
+fit1.forecasts <- forecast(fit1, h=36)
+lines(fitted(fit1), col="blue") # Note that we are plotting the fitted values for the training set here
+lines(fit1.forecasts$mean, col="blue", lwd=2)
+
+
+
+
+#5
+forecasts <- forecast(fit1, h=36)$mean
+accuracy(forecasts, e.test)
+accuracy(fit1)
+
+#6
+
+#a
+plot(residuals(fit1))
+#b
+Acf(residuals(fit1))
+#c
+Box.test(residuals(fit1), type="Ljung", lag=24)
+#d
+hist(residuals(fit1))
+#e
+mean(residuals(fit1))
+
+
+#ARIMA
+#1
+
+plot(e.training)
+range(e.training)
+
+#3
+plot(decompose(e.training))
+plot(diff(e.training))
+
+Acf(diff(e.training),lag=24)
+Pacf(diff(e.training),lag=24)
+mean(diff(e.training))
+
+plot(diff(diff(e.training)))
+Acf(diff(diff(e.training),lag=24))
+Pacf(diff(diff(e.training),lag=24))
+mean(diff(diff(e.training)))
+
+auto.arima(e.training,D=1,d=1)
+fit.e.1 <- Arima(e.training, order=c(0, 1, 1), seasonal=c(0, 1, 1), include.mean=FALSE) # This is the general seasonal model, which can perform quite well
+summary(fit.e.1)
+
+#2
+plot(e.training, ylab="energy", xlab="Year", main="energy",ylim=c(4000,8000) ,xlim=c(1997, 2011))
+lines(e.test)
+
+fit.e.1.forecasts <- forecast(fit.e.1, h=36)$mean
+lines(fitted(fit.e.1), col="blue") # Note that we are plotting the fitted values for the training set here
+lines(fit.e.1.forecasts, col="blue", lwd=2)
+
+
+
+
+
+
+#5
+accuracy(fit.e.1.forecasts,e.test)
+accuracy(fit.e.1.forece.test)
+
+#6
+#a
+mean(residuals(fit.e.1))
+plot(residuals(fit.e.1))
+#b
+Acf(residuals(fit.e.1))
+#c
+Box.test(residuals(fit.e.1), type="Ljung", lag=24)
+#d
+hist(residuals(fit.e.1))
+#e
+mean(residuals(fit.e.1))
+
+
+
+# comparision
+rbind(accuracy(forecasts, e.test),accuracy(fit.e.1.forecasts,e.test))
+# point foreast
+fit.e.2<- Arima(e.test, order=c(4, 0, 0), seasonal=c(1, 1, 0), include.mean=TRUE)
+pointforecast<-forecast(forecasts,h=36)$mean
+
+
+# plot
+plot(energy, ylab="energy", xlab="Year", main="energy",ylim=c(4000,9000) ,xlim=c(1997, 2013))
+
+
+
+
+lines(pointforecast, col="blue", lwd=1)
+
